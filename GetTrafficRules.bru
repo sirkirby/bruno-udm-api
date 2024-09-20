@@ -15,3 +15,8 @@ headers {
   Cookie: {{cookie}}
   Content-Type: application/json
 }
+
+vars:pre-request {
+  csrf-token: bru.getEnvVar("csrf-token")
+  cookie: bru.getEnvVar("cookie")
+}
