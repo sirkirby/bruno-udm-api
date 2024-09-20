@@ -1,0 +1,23 @@
+meta {
+  name: GetFirewallRule
+  type: http
+  seq: 3
+}
+
+get {
+  url: https://{{udm-ip}}/proxy/network/api/s/default/rest/firewallrule/{{rule-id}}
+  body: none
+  auth: none
+}
+
+headers {
+  x-csrf-token: {{csrf-token}}
+  Cookie: {{cookie}}
+  Content-Type: application/json
+}
+
+vars:pre-request {
+  rule-id: 
+  csrf-token: bru.getEnvVar("csrf-token")
+  cookie: bru.getEnvVar("cookie")
+}

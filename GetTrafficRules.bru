@@ -1,0 +1,17 @@
+meta {
+  name: GetTrafficRules
+  type: http
+  seq: 5
+}
+
+get {
+  url: https://{{udm-ip}}/proxy/network/v2/api/site/default/trafficrules
+  body: none
+  auth: none
+}
+
+headers {
+  x-csrf-token: {{csrf-token}}
+  Cookie: {{cookie}}
+  Content-Type: application/json
+}
