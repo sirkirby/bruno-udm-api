@@ -1,11 +1,11 @@
 meta {
-  name: GetFirewallRule
+  name: GetFirewallPolicy
   type: http
-  seq: 6
+  seq: 3
 }
 
 get {
-  url: https://{{udm-ip}}/proxy/network/api/s/default/rest/firewallrule/{{rule-id}}
+  url: https://{{udm-ip}}/proxy/network/v2/api/site/default/firewall-policies/{{rule-id}}
   body: none
   auth: none
 }
