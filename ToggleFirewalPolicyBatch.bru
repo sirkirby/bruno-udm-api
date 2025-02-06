@@ -1,11 +1,11 @@
 meta {
-  name: ToggleFirewallRule
+  name: ToggleFirewalPolicyBatch
   type: http
-  seq: 8
+  seq: 5
 }
 
 put {
-  url: https://{{udm-ip}}/proxy/network/api/s/default/rest/firewallrule/{{rule-id}}
+  url: https://{{udm-ip}}/proxy/network/v2/api/site/default/firewall-policies/batch
   body: json
   auth: none
 }
@@ -15,6 +15,10 @@ headers {
   Cookie: {{cookie}}
   Content-Type: application/json
   Accept: application/json
+}
+
+body:json {
+  [{"_id":"{{rule-id}}","enabled":false}]
 }
 
 vars:pre-request {
