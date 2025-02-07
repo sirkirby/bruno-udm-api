@@ -1,0 +1,42 @@
+meta {
+  name: UpdatePortForwardRule
+  type: http
+  seq: 9
+}
+
+put {
+  url: https://{{udm-ip}}/proxy/network/api/s/default/rest/portforward/:port-forward-id
+  body: json
+  auth: none
+}
+
+params:path {
+  port-forward-id: 
+}
+
+headers {
+  x-csrf-token: {{csrf-token}}
+  Cookie: {{cookie}}
+}
+
+body:json {
+  {
+        "pfwd_interface": "",
+        "fwd": "",
+        "destination_ip": "",
+        "src": "",
+        "log": false,
+        "proto": "tcp_udp",
+        "name": "",
+        "dst_port": "",
+        "site_id": "",
+        "_id": "",
+        "fwd_port": "",
+        "enabled": false
+      }
+}
+
+vars:pre-request {
+  csrf-token: bru.getEnvVar("csrf-token")
+  cookie: bru.getEnvVar("cookie")
+}
