@@ -1,13 +1,17 @@
 meta {
-  name: ToggleTrafficRule
+  name: ToggleTrafficRoute
   type: http
-  seq: 11
+  seq: 2
 }
 
 put {
-  url: https://{{udm-ip}}/proxy/network/v2/api/site/default/trafficrules/{{rule-id}}
+  url: https://{{udm-ip}}/proxy/network/v2/api/site/default/trafficroutes/:route-id
   body: json
   auth: none
+}
+
+params:path {
+  route-id: 
 }
 
 headers {
@@ -18,7 +22,6 @@ headers {
 }
 
 vars:pre-request {
-  rule-id: 
   csrf-token: bru.getEnvVar("csrf-token")
   cookie: bru.getEnvVar("cookie")
 }

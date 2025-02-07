@@ -1,0 +1,190 @@
+meta {
+  name: GetFirewallRules
+  type: http
+  seq: 1
+}
+
+get {
+  url: https://{{udm-ip}}/proxy/network/api/s/default/rest/firewallrule
+  body: none
+  auth: none
+}
+
+headers {
+  x-csrf-token: {{csrf-token}}
+  Cookie: {{cookie}}
+}
+
+vars:pre-request {
+  csrf-token: bru.getEnvVar("csrf-token")
+  cookie: bru.getEnvVar("cookie")
+}
+
+tests {
+  /**
+   * Tests for Firewall Rules API endpoint
+   * Validates rule structure, network configurations, and states
+   */
+  
+  // Basic response validation
+  test("should return successful response", function() {
+      expect(res.status).to.equal(200);
+  });
+  
+  test("response headers should indicate JSON content", function() {
+      expect(res.headers['content-type']).to.include('application/json');
+  });
+  
+  // Response structure validation
+  test("response should have required structure", function() {
+      const body = res.body;
+      
+      expect(body).to.have.property('meta').that.is.an('object');
+      expect(body.meta).to.have.property('rc').that.equals('ok');
+      expect(body).to.have.property('data').that.is.an('array');
+  });
+  
+  // Rule properties validation
+  test("each rule should have required base properties", function() {
+      const rules = res.body.data;
+      
+      rules.forEach((rule, index) => {
+          expect(rule, `Rule at index ${index}`).to.include.all.keys([
+              'setting_preference',
+              'src_networkconf_type',
+              'dst_networkconf_type',
+              'enabled',
+              'protocol',
+              'action',
+              'ruleset',
+              'rule_index',
+              'name'
+          ]);
+      });
+  });
+  
+  // Network configuration validation
+  test("network configuration types should be valid", function() {
+      const rules = res.body.data;
+      const validTypes = ['NETv4', 'NETv6', 'ADDRv4', 'ADDRv6'];
+      
+      rules.forEach(rule => {
+          expect(validTypes, `Invalid src_networkconf_type: ${rule.src_networkconf_type}`)
+              .to.include(rule.src_networkconf_type);
+          expect(validTypes, `Invalid dst_networkconf_type: ${rule.dst_networkconf_type}`)
+              .to.include(rule.dst_networkconf_type);
+      });
+  });
+  
+  // State validation
+  test("rule states should be valid boolean values", function() {
+      const rules = res.body.data;
+      
+      rules.forEach(rule => {
+          expect(rule.state_new).to.be.a('boolean');
+          expect(rule.state_established).to.be.a('boolean');
+          expect(rule.state_invalid).to.be.a('boolean');
+          expect(rule.state_related).to.be.a('boolean');
+      });
+  });
+  
+  // Action validation
+  test("rule actions should be valid", function() {
+      const rules = res.body.data;
+      const validActions = ['accept', 'drop', 'reject'];
+      
+      rules.forEach(rule => {
+          expect(validActions, `Invalid action: ${rule.action}`)
+              .to.include(rule.action.toLowerCase());
+      });
+  });
+  
+  // Protocol validation
+  test("protocols should be valid", function() {
+      const rules = res.body.data;
+      const validProtocols = ['all', 'tcp', 'udp', 'icmp', 'icmp6'];
+      
+      rules.forEach(rule => {
+          if (rule.protocol) {
+              expect(validProtocols, `Invalid protocol: ${rule.protocol}`)
+                  .to.include(rule.protocol.toLowerCase());
+          }
+      });
+  });
+  
+  // Ruleset validation
+  test("rulesets should be valid", function() {
+      const rules = res.body.data;
+      const validRulesets = ['WAN_IN', 'WAN_OUT', 'WAN_LOCAL', 'LAN_IN', 'LAN_OUT', 'LAN_LOCAL'];
+      
+      rules.forEach(rule => {
+          expect(validRulesets, `Invalid ruleset: ${rule.ruleset}`)
+              .to.include(rule.ruleset);
+      });
+  });
+  
+  // Rule index validation
+  test("rule indexes should be valid numbers", function() {
+      const rules = res.body.data;
+      
+      rules.forEach(rule => {
+          expect(rule.rule_index).to.be.a('number');
+          expect(rule.rule_index).to.be.at.least(0);
+      });
+  });
+  
+  // Setting preference validation
+  test("setting preferences should be valid", function() {
+      const rules = res.body.data;
+      const validPreferences = ['auto', 'manual'];
+      
+      rules.forEach(rule => {
+          expect(validPreferences, `Invalid setting_preference: ${rule.setting_preference}`)
+              .to.include(rule.setting_preference);
+      });
+  });
+  
+  // Firewall group validation
+  test("firewall group IDs should be valid if present", function() {
+      const rules = res.body.data;
+      const mongoIdRegex = /^[0-9a-f]{24}$/;
+      
+      rules.forEach(rule => {
+          if (rule.src_firewallgroup_ids && rule.src_firewallgroup_ids.length > 0) {
+              rule.src_firewallgroup_ids.forEach(id => {
+                  expect(id).to.match(mongoIdRegex);
+              });
+          }
+          if (rule.dst_firewallgroup_ids && rule.dst_firewallgroup_ids.length > 0) {
+              rule.dst_firewallgroup_ids.forEach(id => {
+                  expect(id).to.match(mongoIdRegex);
+              });
+          }
+      });
+  });
+  
+  // Name validation
+  test("rules should have non-empty names", function() {
+      const rules = res.body.data;
+      
+      rules.forEach(rule => {
+          expect(rule.name).to.be.a('string');
+          expect(rule.name.trim()).to.not.be.empty;
+      });
+  });
+  
+  // IPSec validation
+  test("ipsec field should be present", function() {
+      const rules = res.body.data;
+      
+      rules.forEach(rule => {
+          expect(rule).to.have.property('ipsec');
+      });
+  });
+  
+  // Performance test
+  test("response time should be reasonable", function() {
+      const THRESHOLD = 2000; // 2 seconds
+      expect(res.responseTime).to.be.below(THRESHOLD);
+  });
+}

@@ -1,0 +1,193 @@
+meta {
+  name: GetFirewallPolicy
+  type: http
+  seq: 2
+}
+
+get {
+  url: https://{{udm-ip}}/proxy/network/v2/api/site/default/firewall-policies/:policy-id
+  body: none
+  auth: none
+}
+
+params:path {
+  policy-id: 
+}
+
+headers {
+  x-csrf-token: {{csrf-token}}
+  Cookie: {{cookie}}
+  Content-Type: application/json
+}
+
+vars:pre-request {
+  csrf-token: bru.getEnvVar("csrf-token")
+  cookie: bru.getEnvVar("cookie")
+}
+
+tests {
+  /**
+   * Tests for Single Firewall Policy API endpoint
+   * Validates policy structure, rules, and configurations
+   */
+  
+  // Basic response validation
+  test("should return successful response", function() {
+      expect(res.status).to.equal(200);
+  });
+  
+  test("response headers should indicate JSON content", function() {
+      expect(res.headers['content-type']).to.include('application/json');
+  });
+  
+  // Policy ID validation
+  test("policy should have valid ID", function() {
+      const policy = res.body;
+      expect(policy).to.have.property('_id').that.is.a('string');
+      expect(policy._id).to.match(/^[0-9a-f]{24}$/);
+  });
+  
+  // Required fields validation
+  test("policy should have all required base properties", function() {
+      const policy = res.body;
+      
+      // Core properties
+      expect(policy).to.have.property('name').that.is.a('string');
+      expect(policy).to.have.property('action').that.is.a('string');
+      expect(policy).to.have.property('enabled').that.is.a('boolean');
+      expect(policy).to.have.property('protocol').that.is.a('string');
+      expect(policy).to.have.property('logging').that.is.a('boolean');
+      expect(policy).to.have.property('description').that.is.a('string');
+      expect(policy).to.have.property('predefined').that.is.a('boolean');
+      expect(policy).to.have.property('index').that.is.a('number');
+      
+      // Connection properties
+      expect(policy).to.have.property('connection_state_type').that.is.a('string');
+      expect(policy).to.have.property('connection_states').that.is.an('array');
+      expect(policy).to.have.property('create_allow_respond').that.is.a('boolean');
+  });
+  
+  // Action validation
+  test("policy action should be valid", function() {
+      const policy = res.body;
+      const validActions = ['ALLOW', 'DENY', 'REJECT', 'BLOCK'];
+      
+      expect(validActions, `Invalid action "${policy.action}"`)
+          .to.include(policy.action);
+  });
+  
+  // Protocol validation
+  test("protocol should be valid", function() {
+      const policy = res.body;
+      const validProtocols = ['all', 'tcp', 'udp', 'icmp', 'icmp6', 'icmpv6'];
+      
+      expect(validProtocols, `Invalid protocol "${policy.protocol}"`)
+          .to.include(policy.protocol.toLowerCase());
+  });
+  
+  // Source configuration validation
+  test("source configuration should be valid", function() {
+      const source = res.body.source;
+      
+      expect(source).to.be.an('object');
+      expect(source).to.have.property('matching_target').that.is.a('string');
+      expect(source).to.have.property('port_matching_type').that.is.a('string');
+      expect(source).to.have.property('match_opposite_ports').that.is.a('boolean');
+      expect(source).to.have.property('match_mac').that.is.a('boolean');
+      expect(source).to.have.property('match_opposite_networks').that.is.a('boolean');
+      
+      if (source.network_ids) {
+          expect(source.network_ids).to.be.an('array');
+          source.network_ids.forEach(id => {
+              expect(id).to.match(/^[0-9a-f]{24}$/);
+          });
+      }
+  });
+  
+  // Destination configuration validation
+  test("destination configuration should be valid", function() {
+      const dest = res.body.destination;
+      
+      expect(dest).to.be.an('object');
+      expect(dest).to.have.property('matching_target').that.is.a('string');
+      expect(dest).to.have.property('matching_target_type').that.is.a('string');
+      expect(dest).to.have.property('port_matching_type').that.is.a('string');
+      expect(dest).to.have.property('match_opposite_ports').that.is.a('boolean');
+      expect(dest).to.have.property('match_opposite_ips').that.is.a('boolean');
+      
+      if (dest.ip_group_id) {
+          expect(dest.ip_group_id).to.match(/^[0-9a-f]{24}$/);
+      }
+      if (dest.port_group_id) {
+          expect(dest.port_group_id).to.match(/^[0-9a-f]{24}$/);
+      }
+      if (dest.ips) {
+          expect(dest.ips).to.be.an('array');
+      }
+  });
+  
+  // Schedule validation
+  test("schedule configuration should be valid", function() {
+      const schedule = res.body.schedule;
+      
+      expect(schedule).to.be.an('object');
+      expect(schedule).to.have.property('mode').that.is.a('string');
+      expect(schedule).to.have.property('repeat_on_days').that.is.an('array');
+      expect(schedule).to.have.property('time_all_day').that.is.a('boolean');
+      
+      const validModes = ['ALWAYS', 'NEVER', 'SCHEDULED', 'EVERY_WEEK'];
+      expect(validModes, `Invalid schedule mode "${schedule.mode}"`)
+          .to.include(schedule.mode);
+  });
+  
+  // IP version validation
+  test("ip_version should be valid", function() {
+      const policy = res.body;
+      const validVersions = ['BOTH', 'IPV4', 'IPV6'];
+      
+      expect(validVersions, `Invalid IP version "${policy.ip_version}"`)
+          .to.include(policy.ip_version);
+  });
+  
+  // ICMP validation
+  test("ICMP configurations should be valid", function() {
+      const policy = res.body;
+      const validIcmpTypes = ['ANY', 'ECHO_REPLY', 'DESTINATION_UNREACHABLE', 'ECHO_REQUEST', 
+                             'NEIGHBOR_SOLICITATION', 'NEIGHBOR_ADVERTISEMENT'];
+      
+      expect(policy).to.have.property('icmp_typename').that.is.a('string');
+      expect(policy).to.have.property('icmp_v6_typename').that.is.a('string');
+      
+      expect(validIcmpTypes, `Invalid ICMP type "${policy.icmp_typename}"`)
+          .to.include(policy.icmp_typename);
+      expect(validIcmpTypes, `Invalid ICMPv6 type "${policy.icmp_v6_typename}"`)
+          .to.include(policy.icmp_v6_typename);
+  });
+  
+  // Security settings validation
+  test("security settings should be properly configured", function() {
+      const policy = res.body;
+      
+      expect(policy).to.have.property('match_ip_sec').that.is.a('boolean');
+      expect(policy).to.have.property('match_opposite_protocol').that.is.a('boolean');
+  });
+  
+  // Zone ID validation
+  test("zone IDs should be properly formatted", function() {
+      const policy = res.body;
+      const zoneIdRegex = /^[0-9a-f]{24}$/;
+      
+      if (policy.source.zone_id) {
+          expect(policy.source.zone_id).to.match(zoneIdRegex);
+      }
+      if (policy.destination.zone_id) {
+          expect(policy.destination.zone_id).to.match(zoneIdRegex);
+      }
+  });
+  
+  // Performance test
+  test("response time should be reasonable", function() {
+      const THRESHOLD = 2000; // 2 seconds
+      expect(res.responseTime).to.be.below(THRESHOLD);
+  });
+}

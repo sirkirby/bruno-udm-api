@@ -1,0 +1,169 @@
+meta {
+  name: GetTrafficRules
+  type: http
+  seq: 4
+}
+
+get {
+  url: https://{{udm-ip}}/proxy/network/v2/api/site/default/trafficrules
+  body: none
+  auth: none
+}
+
+headers {
+  x-csrf-token: {{csrf-token}}
+  Cookie: {{cookie}}
+  Content-Type: application/json
+}
+
+vars:pre-request {
+  csrf-token: bru.getEnvVar("csrf-token")
+  cookie: bru.getEnvVar("cookie")
+}
+
+tests {
+  /**
+   * Tests for Traffic Rules API endpoint
+   * Validates traffic rule structure, scheduling, and configurations
+   */
+  
+  // Basic response validation
+  test("should return successful response", function() {
+      expect(res.status).to.equal(200);
+  });
+  
+  test("response headers should indicate JSON content", function() {
+      expect(res.headers['content-type']).to.include('application/json');
+  });
+  
+  // Response structure validation
+  test("response should be an array of rules", function() {
+      expect(res.body).to.be.an('array');
+  });
+  
+  // Rule properties validation
+  test("each rule should have required base properties", function() {
+      const rules = res.body;
+      
+      rules.forEach((rule, index) => {
+          expect(rule, `Rule at index ${index}`).to.include.all.keys([
+              '_id',
+              'action',
+              'description',
+              'enabled',
+              'matching_target',
+              'schedule',
+              'bandwidth_limit'
+          ]);
+      });
+  });
+  
+  // Action validation
+  test("rule actions should be valid", function() {
+      const validActions = ['ALLOW', 'BLOCK'];
+      
+      res.body.forEach(rule => {
+          expect(validActions, `Invalid action "${rule.action}" for rule "${rule.description}"`)
+              .to.include(rule.action);
+      });
+  });
+  
+  // Bandwidth limit validation
+  test("bandwidth limit configuration should be valid", function() {
+      res.body.forEach(rule => {
+          const limit = rule.bandwidth_limit;
+          expect(limit).to.be.an('object');
+          expect(limit).to.have.property('enabled').that.is.a('boolean');
+          expect(limit).to.have.property('download_limit_kbps').that.is.a('number');
+          expect(limit).to.have.property('upload_limit_kbps').that.is.a('number');
+          
+          if (limit.enabled) {
+              expect(limit.download_limit_kbps).to.be.at.least(0);
+              expect(limit.upload_limit_kbps).to.be.at.least(0);
+          }
+      });
+  });
+  
+  // Schedule validation
+  test("schedule configuration should be valid", function() {
+      res.body.forEach(rule => {
+          const schedule = rule.schedule;
+          expect(schedule).to.be.an('object');
+          expect(schedule).to.have.property('mode').that.is.a('string');
+          
+          const validModes = ['ALWAYS', 'NEVER', 'CUSTOM'];
+          expect(validModes, `Invalid schedule mode "${schedule.mode}"`)
+              .to.include(schedule.mode);
+              
+          if (schedule.mode === 'CUSTOM') {
+              expect(schedule).to.have.property('date_start').that.matches(/^\d{4}-\d{2}-\d{2}$/);
+              expect(schedule).to.have.property('date_end').that.matches(/^\d{4}-\d{2}-\d{2}$/);
+              expect(schedule).to.have.property('repeat_on_days').that.is.an('array');
+              
+              const validDays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+              schedule.repeat_on_days.forEach(day => {
+                  expect(validDays, `Invalid day "${day}"`)
+                      .to.include(day);
+              });
+          }
+      });
+  });
+  
+  // Target validation
+  test("matching target should be valid", function() {
+      const validTargets = ['INTERNET', 'LOCAL', 'ALL'];
+      
+      res.body.forEach(rule => {
+          expect(validTargets, `Invalid matching_target "${rule.matching_target}"`)
+              .to.include(rule.matching_target);
+      });
+  });
+  
+  // Arrays validation
+  test("array properties should be present and valid", function() {
+      res.body.forEach(rule => {
+          expect(rule).to.have.property('app_category_ids').that.is.an('array');
+          expect(rule).to.have.property('app_ids').that.is.an('array');
+          expect(rule).to.have.property('domains').that.is.an('array');
+          expect(rule).to.have.property('ip_addresses').that.is.an('array');
+          expect(rule).to.have.property('ip_ranges').that.is.an('array');
+          expect(rule).to.have.property('network_ids').that.is.an('array');
+          expect(rule).to.have.property('regions').that.is.an('array');
+      });
+  });
+  
+  // ID validation
+  test("rule IDs should be properly formatted", function() {
+      const mongoIdRegex = /^[0-9a-f]{24}$/;
+      
+      res.body.forEach(rule => {
+          expect(rule._id).to.match(mongoIdRegex);
+          
+          // Validate IDs in arrays if present
+          if (rule.app_category_ids.length > 0) {
+              rule.app_category_ids.forEach(id => {
+                  expect(id).to.match(mongoIdRegex);
+              });
+          }
+          if (rule.network_ids.length > 0) {
+              rule.network_ids.forEach(id => {
+                  expect(id).to.match(mongoIdRegex);
+              });
+          }
+      });
+  });
+  
+  // Description validation
+  test("rules should have non-empty descriptions", function() {
+      res.body.forEach(rule => {
+          expect(rule.description).to.be.a('string');
+          expect(rule.description.trim()).to.not.be.empty;
+      });
+  });
+  
+  // Performance test
+  test("response time should be reasonable", function() {
+      const THRESHOLD = 2000; // 2 seconds
+      expect(res.responseTime).to.be.below(THRESHOLD);
+  });
+}

@@ -1,0 +1,174 @@
+meta {
+  name: GetFirewallPolicies
+  type: http
+  seq: 1
+}
+
+get {
+  url: https://{{udm-ip}}/proxy/network/v2/api/site/default/firewall-policies
+  body: none
+  auth: none
+}
+
+headers {
+  x-csrf-token: {{csrf-token}}
+  Cookie: {{cookie}}
+}
+
+vars:pre-request {
+  csrf-token: bru.getEnvVar("csrf-token")
+  cookie: bru.getEnvVar("cookie")
+}
+
+tests {
+  /**
+   * Tests for Firewall Policies API endpoint
+   * Validates policy structure, rules, and configurations
+   */
+  
+  // Basic response validation
+  test("should return successful response", function() {
+      expect(res.status).to.equal(200);
+  });
+  
+  test("response headers should indicate JSON content", function() {
+      expect(res.headers['content-type']).to.include('application/json');
+  });
+  
+  // Schema validation
+  test("response should be an array of policy objects", function() {
+      const body = res.body;
+      expect(body).to.be.an('array');
+      expect(body.length).to.be.at.least(1);
+  });
+  
+  // Policy structure validation
+  test("each policy should have required base properties", function() {
+      const policies = res.body;
+      
+      policies.forEach((policy, index) => {
+          expect(policy, `Policy at index ${index}`).to.have.property('_id').that.is.a('string');
+          expect(policy, `Policy at index ${index}`).to.have.property('name').that.is.a('string');
+          expect(policy, `Policy at index ${index}`).to.have.property('action').that.is.a('string');
+          expect(policy, `Policy at index ${index}`).to.have.property('enabled').that.is.a('boolean');
+          expect(policy, `Policy at index ${index}`).to.have.property('protocol');
+          expect(policy, `Policy at index ${index}`).to.have.property('logging').that.is.a('boolean');
+      });
+  });
+  
+  // Action validation
+  test("policy actions should be valid", function() {
+      const validActions = ['ALLOW', 'DENY', 'REJECT', 'BLOCK'];
+      
+      res.body.forEach(policy => {
+          expect(validActions, `Invalid action "${policy.action}" for policy "${policy.name}"`)
+              .to.include(policy.action);
+      });
+  });
+  
+  // Protocol validation
+  test("protocols should be valid", function() {
+      const validProtocols = ['all', 'tcp', 'udp', 'icmp', 'icmp6', 'icmpv6', 'tcp_udp'];
+      
+      res.body.forEach(policy => {
+          expect(validProtocols, `Invalid protocol "${policy.protocol}" for policy "${policy.name}"`)
+              .to.include(policy.protocol.toLowerCase());
+      });
+  });
+  
+  // Source and destination validation
+  test("source and destination configurations should be valid", function() {
+      res.body.forEach(policy => {
+          // Source validation
+          expect(policy).to.have.property('source').that.is.an('object');
+          expect(policy.source).to.have.property('matching_target').that.is.a('string');
+          expect(policy.source).to.have.property('port_matching_type').that.is.a('string');
+          expect(policy.source).to.have.property('match_opposite_ports').that.is.a('boolean');
+          
+          // Destination validation
+          expect(policy).to.have.property('destination').that.is.an('object');
+          expect(policy.destination).to.have.property('matching_target').that.is.a('string');
+          expect(policy.destination).to.have.property('port_matching_type').that.is.a('string');
+          expect(policy.destination).to.have.property('match_opposite_ports').that.is.a('boolean');
+      });
+  });
+  
+  // Schedule validation
+  test("schedule configuration should be valid", function() {
+      res.body.forEach(policy => {
+          expect(policy).to.have.property('schedule').that.is.an('object');
+          const schedule = policy.schedule;
+          
+          expect(schedule).to.have.property('mode').that.is.a('string');
+          expect(schedule).to.have.property('repeat_on_days').that.is.an('array');
+          expect(schedule).to.have.property('time_all_day').that.is.a('boolean');
+          
+          // Validate schedule mode
+          const validModes = ['ALWAYS', 'NEVER', 'SCHEDULED', 'EVERY_WEEK'];
+          expect(validModes, `Invalid schedule mode "${schedule.mode}"`)
+              .to.include(schedule.mode);
+      });
+  });
+  
+  // IP version validation
+  test("ip_version should be valid", function() {
+      const validVersions = ['BOTH', 'IPV4', 'IPV6'];
+      
+      res.body.forEach(policy => {
+          expect(policy).to.have.property('ip_version').that.is.a('string');
+          expect(validVersions, `Invalid IP version "${policy.ip_version}" for policy "${policy.name}"`)
+              .to.include(policy.ip_version);
+      });
+  });
+  
+  // ICMP validation
+  test("ICMP configurations should be valid", function() {
+      res.body.forEach(policy => {
+          expect(policy).to.have.property('icmp_typename').that.is.a('string');
+          expect(policy).to.have.property('icmp_v6_typename').that.is.a('string');
+          
+          const validIcmpTypes = ['ANY', 'ECHO_REPLY', 'DESTINATION_UNREACHABLE', 'ECHO_REQUEST', 
+                                 'NEIGHBOR_SOLICITATION', 'NEIGHBOR_ADVERTISEMENT'];
+          expect(validIcmpTypes, `Invalid ICMP type "${policy.icmp_typename}"`)
+              .to.include(policy.icmp_typename);
+          expect(validIcmpTypes, `Invalid ICMPv6 type "${policy.icmp_v6_typename}"`)
+              .to.include(policy.icmp_v6_typename);
+      });
+  });
+  
+  // Security settings validation
+  test("security settings should be properly configured", function() {
+      res.body.forEach(policy => {
+          expect(policy).to.have.property('match_ip_sec').that.is.a('boolean');
+          expect(policy).to.have.property('match_opposite_protocol').that.is.a('boolean');
+      });
+  });
+  
+  // Performance test
+  test("response time should be reasonable", function() {
+      const THRESHOLD = 2000; // 2 seconds
+      expect(res.responseTime).to.be.below(THRESHOLD);
+  });
+  
+  // Policy index validation
+  test("policy indexes should be valid", function() {
+      res.body.forEach(policy => {
+          expect(policy).to.have.property('index').that.is.a('number');
+          expect(policy.index).to.be.at.least(0);
+      });
+  });
+  
+  // Zone ID validation
+  test("zone IDs should be properly formatted", function() {
+      const zoneIdRegex = /^[0-9a-f]{24}$/;
+      
+      res.body.forEach(policy => {
+          if (policy.source.zone_id) {
+              expect(policy.source.zone_id).to.match(zoneIdRegex);
+          }
+          if (policy.destination.zone_id) {
+              expect(policy.destination.zone_id).to.match(zoneIdRegex);
+          }
+      });
+  });
+}
