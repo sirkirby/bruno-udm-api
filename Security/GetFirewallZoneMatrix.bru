@@ -1,0 +1,148 @@
+meta {
+  name: GetFirewallZoneMatrix
+  type: http
+  seq: 1
+}
+
+get {
+  url: https://{{udm-ip}}/proxy/network/v2/api/site/default/firewall/zone-matrix
+  body: none
+  auth: none
+}
+
+headers {
+  x-csrf-token: {{csrf-token}}
+  Cookie: {{cookie}}
+}
+
+vars:pre-request {
+  csrf-token: bru.getEnvVar("csrf-token")
+  cookie: bru.getEnvVar("cookie")
+}
+
+tests {
+  /**
+   * Tests for Firewall Zone Matrix API endpoint
+   * Validates zone matrix structure, policies, and configurations
+   */
+  
+  // Basic response validation
+  test("should return successful response", function() {
+      expect(res.status).to.equal(200);
+  });
+  
+  test("response headers should indicate JSON content", function() {
+      expect(res.headers['content-type']).to.include('application/json');
+  });
+  
+  // Response structure validation
+  test("response should be an array of zones", function() {
+      expect(res.body).to.be.an('array');
+      expect(res.body.length).to.be.at.least(1);
+  });
+  
+  // Zone object validation
+  test("each zone object should have required properties", function() {
+      const zones = res.body;
+      
+      zones.forEach((zone, index) => {
+          expect(zone, `Zone at index ${index}`).to.have.property('_id').that.is.a('string');
+          expect(zone, `Zone at index ${index}`).to.have.property('name').that.is.a('string');
+          expect(zone, `Zone at index ${index}`).to.have.property('zone_key').that.is.a('string');
+          expect(zone, `Zone at index ${index}`).to.have.property('data').that.is.an('array');
+      });
+  });
+  
+  // Zone ID validation
+  test("zone IDs should be properly formatted", function() {
+      const zones = res.body;
+      const mongoIdRegex = /^[0-9a-f]{24}$/;
+      
+      zones.forEach(zone => {
+          expect(zone._id).to.match(mongoIdRegex);
+          
+          // Validate IDs in the data array if present
+          zone.data.forEach(item => {
+              expect(item._id).to.match(mongoIdRegex);
+          });
+      });
+  });
+  
+  // Policy count validation
+  test("policy counts should be valid", function() {
+      const zones = res.body;
+      
+      zones.forEach(zone => {
+          zone.data.forEach(item => {
+              expect(item).to.have.property('policy_count').that.is.a('number');
+              expect(item.policy_count).to.be.at.least(0);
+          });
+      });
+  });
+  
+  // Action validation
+  test("actions should be valid when present", function() {
+      const zones = res.body;
+      const validActions = ['allow_all', 'block_all', 'return_traffic', null];
+      
+      zones.forEach(zone => {
+          zone.data.forEach(item => {
+              expect(item).to.have.property('action');
+              expect(validActions, `Invalid action: ${item.action}`)
+                  .to.include(item.action);
+          });
+      });
+  });
+  
+  // Zone key validation
+  test("zone keys should be valid", function() {
+      const zones = res.body;
+      const validZoneKeys = ['internal', 'external', 'vpn', 'gateway', 'hotspot', 'dmz', ''];
+      
+      zones.forEach(zone => {
+          expect(validZoneKeys, `Invalid zone_key: ${zone.zone_key}`)
+              .to.include(zone.zone_key.toLowerCase());
+      });
+  });
+  
+  // Data array validation
+  test("data arrays should be properly structured", function() {
+      const zones = res.body;
+      
+      zones.forEach(zone => {
+          expect(zone.data).to.be.an('array');
+          zone.data.forEach(item => {
+              expect(item).to.have.all.keys(['_id', 'action', 'policy_count']);
+          });
+      });
+  });
+  
+  // Zone name validation
+  test("zone names should be non-empty strings", function() {
+      const zones = res.body;
+      
+      zones.forEach(zone => {
+          expect(zone.name).to.be.a('string');
+          expect(zone.name.trim()).to.not.be.empty;
+      });
+  });
+  
+  // Zone consistency validation
+  test("zones should have consistent structure throughout data", function() {
+      const zones = res.body;
+      
+      if (zones.length > 0) {
+          const firstZoneDataLength = zones[0].data.length;
+          zones.forEach(zone => {
+              expect(zone.data.length).to.equal(firstZoneDataLength, 
+                  `Inconsistent data array length in zone ${zone.name}`);
+          });
+      }
+  });
+  
+  // Performance test
+  test("response time should be reasonable", function() {
+      const THRESHOLD = 2000; // 2 seconds
+      expect(res.responseTime).to.be.below(THRESHOLD);
+  });
+}
