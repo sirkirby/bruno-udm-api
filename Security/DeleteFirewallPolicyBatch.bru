@@ -1,0 +1,39 @@
+meta {
+  name: DeleteFirewallPolicyBatch
+  type: http
+  seq: 7
+}
+
+post {
+  url: https://{{udm-ip}}/proxy/network/v2/api/site/default/firewall-policies/batch-delete
+  body: json
+  auth: none
+}
+
+headers {
+  x-csrf-token: {{csrf-token}}
+  Cookie: {{cookie}}
+}
+
+body:json {
+  ["989898998998999898889"]
+}
+
+vars:pre-request {
+  csrf-token: bru.getEnvVar("csrf-token")
+  cookie: bru.getEnvVar("cookie")
+}
+
+tests {
+  // Basic response validation
+  test("should return successful response", function() {
+      expect(res.status).to.equal(204);
+  });
+  
+  // Performance test
+  test("response time should be reasonable", function() {
+      // UniFi api seems to hold for 10 seconds, likely to prevent API abuse
+      const THRESHOLD = 10001; // 10 seconds
+      expect(res.responseTime).to.be.below(THRESHOLD);
+  });
+}

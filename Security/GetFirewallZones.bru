@@ -1,0 +1,39 @@
+meta {
+  name: GetFirewallZones
+  type: http
+  seq: 14
+}
+
+get {
+  url: https://{{udm-ip}}/proxy/network/v2/api/site/default/firewall/zone
+  body: none
+  auth: none
+}
+
+headers {
+  x-csrf-token: {{csrf-token}}
+  Cookie: {{cookie}}
+}
+
+vars:pre-request {
+  csrf-token: bru.getEnvVar("csrf-token")
+  cookie: bru.getEnvVar("cookie")
+}
+
+tests {
+  // Basic response validation
+  test("should return successful response", function() {
+      expect(res.status).to.equal(200);
+  });
+  
+  test("response headers should indicate JSON content", function() {
+      expect(res.headers['content-type']).to.include('application/json');
+  });
+  
+  // Performance test
+  test("response time should be reasonable", function() {
+      // Adjust threshold based on your requirements
+      const THRESHOLD = 2000; // 2 seconds
+      expect(res.responseTime).to.be.below(THRESHOLD);
+  });
+}

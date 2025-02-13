@@ -1,0 +1,80 @@
+meta {
+  name: CreateFirewallPolicy
+  type: http
+  seq: 4
+}
+
+post {
+  url: https://{{udm-ip}}/proxy/network/v2/api/site/default/firewall-policies
+  body: json
+  auth: none
+}
+
+headers {
+  x-csrf-token: {{csrf-token}}
+  Cookie: {{cookie}}
+}
+
+body:json {
+  {
+    "name": "My Test Rule",
+    "description": "Blocks gaming pc from google",
+    "enabled": true,
+    "action": "BLOCK",
+    "create_allow_respond": false,
+    "ip_version": "BOTH",
+    "logging": false,
+    "protocol": "all",
+    "connection_state_type": "ALL",
+    "match_ip_sec": false,
+    "schedule": {
+      "mode": "ALWAYS"
+    },
+    "source": {
+      "zone_id": "9999999999",
+      "match_mac": false,
+      "port_matching_type": "ANY",
+      "matching_target": "CLIENT",
+      "client_macs": [
+        "8c:99:88:dd:99:5b"
+      ]
+    },
+    "destination": {
+      "zone_id": "99999999888",
+      "port_matching_type": "ANY",
+      "matching_target": "WEB",
+      "web_domains": [
+        "google.com"
+      ]
+    }
+  }
+}
+
+vars:pre-request {
+  csrf-token: bru.getEnvVar("csrf-token")
+  cookie: bru.getEnvVar("cookie")
+}
+
+tests {
+  // Basic response validation
+  test("should return successful response", function() {
+      expect(res.status).to.equal(201);
+  });
+  
+  test("response headers should indicate JSON content", function() {
+      expect(res.headers['content-type']).to.include('application/json');
+  });
+  
+  // Performance test
+  test("response time should be reasonable", function() {
+      // UniFi api seems to hold for 10 seconds, likely to prevent API abuse
+      const THRESHOLD = 10001; // 10 seconds
+      expect(res.responseTime).to.be.below(THRESHOLD);
+  });
+}
+
+docs {
+  ## create a new firewall policy
+  
+  POST required payload and response with with newly created policy, that same payload as the policy get endpoints.
+}
