@@ -1,0 +1,21 @@
+meta {
+  name: GetQoSRoutes
+  type: http
+  seq: 3
+}
+
+get {
+  url: https://{{udm-ip}}/proxy/network/v2/api/site/default/qos-rules
+  body: none
+  auth: none
+}
+
+headers {
+  x-csrf-token: {{csrf-token}}
+  Cookie: {{cookie}}
+}
+
+vars:pre-request {
+  csrf-token: bru.getEnvVar("csrf-token")
+  cookie: bru.getEnvVar("cookie")
+}
