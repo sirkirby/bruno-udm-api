@@ -1,0 +1,70 @@
+meta {
+  name: UpdateStaticRoutes
+  type: http
+  seq: 4
+}
+
+put {
+  url: https://{{udm-ip}}/proxy/network/api/s/default/rest/routing/:route-id
+  body: json
+  auth: none
+}
+
+params:path {
+  route-id: 
+}
+
+headers {
+  x-csrf-token: {{csrf-token}}
+  Cookie: {{cookie}}
+}
+
+vars:pre-request {
+  csrf-token: bru.getEnvVar("csrf-token")
+  cookie: bru.getEnvVar("cookie")
+}
+
+tests {
+  /**
+   * Tests for Firewall Group API endpoint
+   * These tests validate the structure and format of the response
+   * without making assumptions about specific data values
+   */
+  
+  // Basic response validation
+  test("should return successful response", function() {
+      expect(res.status).to.equal(200);
+  });
+  
+  test("response headers should indicate JSON content", function() {
+      expect(res.headers['content-type']).to.include('application/json');
+  });
+  
+  // Schema validation
+  test("response should have required structure", function() {
+      const body = res.body;
+      
+      expect(body).to.have.property('meta').that.is.an('object');
+      expect(body).to.have.property('data').that.is.an('array');
+      expect(body.meta).to.have.property('rc').equal('ok');
+  });
+  
+  // Performance test
+  test("response time should be reasonable", function() {
+      // Adjust threshold based on your requirements
+      const THRESHOLD = 2000; // 2 seconds
+      expect(res.responseTime).to.be.below(THRESHOLD);
+  });
+  
+  // Data consistency test
+  test("all groups should reference same site_id", function() {
+      const body = res.body;
+      if (body.data.length > 0) {
+          const firstSiteId = body.data[0].site_id;
+          body.data.forEach(group => {
+              expect(group.site_id).to.equal(firstSiteId, 
+                  `Inconsistent site_id found in group ${group.name}`);
+          });
+      }
+  });
+}

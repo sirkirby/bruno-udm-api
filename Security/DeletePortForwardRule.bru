@@ -1,0 +1,25 @@
+meta {
+  name: DeletePortForwardRule
+  type: http
+  seq: 13
+}
+
+delete {
+  url: https://{{udm-ip}}/proxy/network/api/s/default/rest/portforward/:port-forward-id
+  body: none
+  auth: none
+}
+
+params:path {
+  port-forward-id: 
+}
+
+headers {
+  x-csrf-token: {{csrf-token}}
+  Cookie: {{cookie}}
+}
+
+vars:pre-request {
+  csrf-token: bru.getEnvVar("csrf-token")
+  cookie: bru.getEnvVar("cookie")
+}

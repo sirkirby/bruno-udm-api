@@ -1,0 +1,208 @@
+meta {
+  name: CreatePortForwardRule
+  type: http
+  seq: 12
+}
+
+post {
+  url: https://{{udm-ip}}/proxy/network/api/s/default/rest/portforward
+  body: json
+  auth: none
+}
+
+headers {
+  x-csrf-token: {{csrf-token}}
+  Cookie: {{cookie}}
+}
+
+body:json {
+  {
+      "pfwd_interface": "wan",
+      "fwd": "10.1.1.75",
+      "src": "any",
+      "log": false,
+      "proto": "tcp",
+      "name": "Traefik-443",
+      "dst_port": "443",
+      "fwd_port": "443",
+      "enabled": false
+  }
+}
+
+vars:pre-request {
+  csrf-token: bru.getEnvVar("csrf-token")
+  cookie: bru.getEnvVar("cookie")
+}
+
+tests {
+  /**
+   * Tests for Port Forwarding API endpoint
+   * Validates port forwarding rules structure and configurations
+   */
+  
+  // Basic response validation
+  test("should return successful response", function() {
+      expect(res.status).to.equal(200);
+  });
+  
+  test("response headers should indicate JSON content", function() {
+      expect(res.headers['content-type']).to.include('application/json');
+  });
+  
+  // Response structure validation
+  test("response should have required structure", function() {
+      const body = res.body;
+      
+      expect(body).to.have.property('meta').that.is.an('object');
+      expect(body.meta).to.have.property('rc').that.equals('ok');
+      expect(body).to.have.property('data').that.is.an('array');
+  });
+  
+  // Port forward rule validation
+  test("each port forward rule should have required properties", function() {
+      const rules = res.body.data;
+      
+      rules.forEach((rule, index) => {
+          expect(rule, `Rule at index ${index}`).to.include.all.keys([
+              '_id',
+              'name',
+              'enabled',
+              'pfwd_interface',
+              'fwd',
+              'src',
+              'proto',
+              'dst_port',
+              'fwd_port',
+              'log',
+              'site_id'
+          ]);
+      });
+  });
+  
+  // ID and site_id validation
+  test("IDs should be properly formatted", function() {
+      const rules = res.body.data;
+      const mongoIdRegex = /^[0-9a-f]{24}$/;
+      
+      rules.forEach(rule => {
+          expect(rule._id, `Invalid _id format: ${rule._id}`).to.match(mongoIdRegex);
+          expect(rule.site_id, `Invalid site_id format: ${rule.site_id}`).to.match(mongoIdRegex);
+      });
+  });
+  
+  // Protocol validation
+  test("protocols should be valid", function() {
+      const rules = res.body.data;
+      const validProtocols = ['tcp', 'udp', 'tcp_udp'];
+      
+      rules.forEach(rule => {
+          expect(validProtocols, `Invalid protocol "${rule.proto}" for rule "${rule.name}"`)
+              .to.include(rule.proto);
+      });
+  });
+  
+  // Interface validation
+  test("forwarding interfaces should be valid", function() {
+      const rules = res.body.data;
+      const validInterfaces = ['wan', 'lan'];
+      
+      rules.forEach(rule => {
+          expect(validInterfaces, `Invalid interface "${rule.pfwd_interface}" for rule "${rule.name}"`)
+              .to.include(rule.pfwd_interface);
+      });
+  });
+  
+  // Port validation
+  test("ports should be valid", function() {
+      const rules = res.body.data;
+      const portRegex = /^\d+$/;
+      
+      rules.forEach(rule => {
+          // Destination port validation
+          expect(rule.dst_port, `Invalid destination port "${rule.dst_port}" for rule "${rule.name}"`)
+              .to.match(portRegex);
+          const dstPort = parseInt(rule.dst_port);
+          expect(dstPort, `Destination port out of range for rule "${rule.name}"`)
+              .to.be.within(1, 65535);
+              
+          // Forward port validation
+          expect(rule.fwd_port, `Invalid forward port "${rule.fwd_port}" for rule "${rule.name}"`)
+              .to.match(portRegex);
+          const fwdPort = parseInt(rule.fwd_port);
+          expect(fwdPort, `Forward port out of range for rule "${rule.name}"`)
+              .to.be.within(1, 65535);
+      });
+  });
+  
+  // IP address validation
+  test("IP addresses should be valid", function() {
+      const rules = res.body.data;
+      const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+      
+      rules.forEach(rule => {
+          // Forward IP validation
+          expect(rule.fwd, `Invalid forward IP "${rule.fwd}" for rule "${rule.name}"`)
+              .to.match(ipv4Regex);
+              
+          const parts = rule.fwd.split('.');
+          parts.forEach(part => {
+              const num = parseInt(part);
+              expect(num, `Invalid IP component in forward IP for rule "${rule.name}"`)
+                  .to.be.within(0, 255);
+          });
+          
+          // Source validation
+          expect(['any', ipv4Regex], `Invalid source "${rule.src}" for rule "${rule.name}"`)
+              .to.satisfy(patterns => rule.src === 'any' || ipv4Regex.test(rule.src));
+              
+          // Destination IP validation if present
+          if (rule.destination_ip) {
+              expect(['any', ipv4Regex], `Invalid destination IP "${rule.destination_ip}" for rule "${rule.name}"`)
+                  .to.satisfy(patterns => rule.destination_ip === 'any' || ipv4Regex.test(rule.destination_ip));
+          }
+      });
+  });
+  
+  // Boolean fields validation
+  test("boolean fields should be valid", function() {
+      const rules = res.body.data;
+      
+      rules.forEach(rule => {
+          expect(rule.enabled, `Invalid enabled value for rule "${rule.name}"`)
+              .to.be.a('boolean');
+          expect(rule.log, `Invalid log value for rule "${rule.name}"`)
+              .to.be.a('boolean');
+      });
+  });
+  
+  // Name validation
+  test("names should be valid", function() {
+      const rules = res.body.data;
+      
+      rules.forEach(rule => {
+          expect(rule.name, `Empty name for rule ID ${rule._id}`)
+              .to.be.a('string')
+              .and.to.have.length.gt(0);
+      });
+  });
+  
+  // Uniqueness validation
+  test("forward rules should have unique combinations", function() {
+      const rules = res.body.data;
+      const combinations = new Set();
+      
+      rules.forEach(rule => {
+          const key = `${rule.pfwd_interface}-${rule.fwd_port}-${rule.proto}`;
+          expect(combinations.has(key), 
+              `Duplicate port forwarding rule found: Interface ${rule.pfwd_interface}, Port ${rule.fwd_port}, Protocol ${rule.proto}`)
+              .to.be.false;
+          combinations.add(key);
+      });
+  });
+  
+  // Performance test
+  test("response time should be reasonable", function() {
+      const THRESHOLD = 2000; // 2 seconds
+      expect(res.responseTime).to.be.below(THRESHOLD);
+  });
+}
